@@ -8,7 +8,11 @@ async function startServer() {
   const PORT = 3000;
 
   // Initialize Gemini
-  const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("GEMINI_API_KEY not found in environment variables.");
+  }
+  const genAI = new GoogleGenAI({ apiKey: apiKey || '' });
 
   app.use(express.json());
 
@@ -17,7 +21,11 @@ async function startServer() {
     const { text, sourceLang, targetLang, mode } = req.body;
     
     if (!text) {
-      return res.status(400).json({ error: 'Text is required' });
+      return res.status(400).json({ error: 'Il testo è obbligatorio' });
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'Configurazione API mancante (chiave non trovata)' });
     }
 
     const systemInstruction = mode === 'specialist' 
@@ -45,12 +53,12 @@ async function startServer() {
       3. Fornisci SOLO la traduzione finale.
       `;
 
-    const prompt = `Traduci il seguente testo da ${sourceLang} a ${targetLang}:\n\n${text}`;
+    const prompt = `Traduci il seguente testo da ${sourceLang || 'auto'} a ${targetLang || 'Italian'}:\n\n${text}`;
 
     try {
-      const response: any = await (genAI as any).models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: prompt,
+      const response = await genAI.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts: [{ text: prompt }] }],
         config: {
           systemInstruction,
           temperature: 0.3,
@@ -58,9 +66,9 @@ async function startServer() {
       });
 
       res.json({ text: response.text || "Errore nella generazione della traduzione." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Translation error:", error);
-      res.status(500).json({ error: "Impossibile completare la traduzione." });
+      res.status(500).json({ error: `Errore API: ${error.message || 'Impossibile completare la traduzione.'}` });
     }
   });
 
@@ -69,15 +77,19 @@ async function startServer() {
     const { text } = req.body;
     
     if (!text) {
-      return res.status(400).json({ error: 'Text is required' });
+      return res.status(400).json({ error: 'Il testo è obbligatorio' });
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'Configurazione API mancante (chiave non trovata)' });
     }
 
     const prompt = `Fornisci solo il Pinyin (con i toni) per il seguente testo cinese. Non aggiungere spiegazioni o traduzioni:\n\n${text}`;
 
     try {
-      const response: any = await (genAI as any).models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: prompt,
+      const response = await genAI.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts: [{ text: prompt }] }],
         config: {
           systemInstruction: "Sei un esperto di lingua cinese. Fornisci solo il Pinyin con i toni per il testo fornito.",
           temperature: 0.1,
@@ -85,9 +97,9 @@ async function startServer() {
       });
 
       res.json({ text: (response.text || "").trim() });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Pinyin error:", error);
-      res.status(500).json({ error: "Errore nella generazione del Pinyin." });
+      res.status(500).json({ error: `Errore API: ${error.message || 'Errore nella generazione del Pinyin.'}` });
     }
   });
 
