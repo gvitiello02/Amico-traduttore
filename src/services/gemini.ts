@@ -43,7 +43,7 @@ export async function translateText({ text, sourceLang, targetLang, mode = 'spec
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         systemInstruction,
@@ -51,10 +51,17 @@ export async function translateText({ text, sourceLang, targetLang, mode = 'spec
       },
     });
 
-    return response.text || "Errore nella generazione della traduzione.";
-  } catch (error) {
+    if (!response.text) {
+      throw new Error("Risposta vuota dall'IA.");
+    }
+
+    return response.text;
+  } catch (error: any) {
     console.error("Translation error:", error);
-    throw new Error("Impossibile completare la traduzione. Riprova più tardi.");
+    if (error.message?.includes('API_KEY_INVALID')) {
+      throw new Error("Configurazione API non valida o mancante nel link pubblico.");
+    }
+    throw new Error("Impossibile completare la traduzione. Controlla la connessione o riprova tra poco.");
   }
 }
 
@@ -65,7 +72,7 @@ export async function getPinyin(text: string): Promise<string> {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         systemInstruction: "Sei un esperto di lingua cinese. Fornisci solo il Pinyin con i toni per il testo fornito.",
